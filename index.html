@@ -60,6 +60,17 @@
   .aep.sel{border-color:var(--accent);background:rgba(61,169,252,.12)}
   .aep .a{font-size:11px;color:var(--muted)} .aep .i{font-weight:700;font-size:15px;margin-top:2px} .aep .u{font-size:10px;color:var(--muted)}
   .bom a{color:var(--accent)}
+  .aclist{position:absolute;left:0;right:0;top:100%;z-index:30;background:var(--panel2);border:1px solid var(--accent);
+          border-radius:8px;margin-top:3px;max-height:240px;overflow:auto;display:none;box-shadow:0 8px 24px rgba(0,0,0,.4)}
+  .aclist.open{display:block}
+  .acitem{padding:8px 11px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--line)}
+  .acitem:last-child{border-bottom:none}
+  .acitem:hover,.acitem.hi{background:rgba(61,169,252,.16)}
+  .acitem .sub{color:var(--muted);font-size:11.5px}
+  .bomdeep{display:inline-block;text-align:center;width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;
+           background:var(--panel);color:var(--accent);font-size:12.5px;text-decoration:none;white-space:nowrap}
+  .bomdeep:hover{border-color:var(--accent)}
+  .bomdeep.disabled{opacity:.45;pointer-events:none}
   .prbox{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-top:6px;font-size:13px}
   .prbox .pr{margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--line)}
   .prbox .pr:last-child{margin-bottom:0;padding-bottom:0;border-bottom:none}
@@ -145,13 +156,21 @@
     <div class="card">
       <h2>Design rainfall &amp; catchment</h2>
       <div class="bom" id="bomPanel">
-        <div class="field" style="margin-bottom:6px">
-          <label>Site address / location <span class="pill">BoM IFD2016 lookup</span></label>
+        <div class="field" style="margin-bottom:6px;position:relative">
+          <label>Site address / location <span class="pill">type to search</span></label>
           <div style="display:flex;gap:8px">
-            <input id="bomAddr" placeholder="e.g. 12 Smith St, Toorak VIC" style="flex:1">
+            <input id="bomAddr" placeholder="start typing an address…" autocomplete="off" style="flex:1">
             <button class="ghost" id="bomBtn" type="button" style="white-space:nowrap">Fetch from BoM</button>
           </div>
-          <div class="hint" id="bomStatus">Enter the 5-min, 1% AEP intensity manually below, or look it up at the <a href="http://www.bom.gov.au/water/designRainfalls/revised-ifd/" target="_blank" rel="noopener">BoM IFD2016 tool ↗</a>. (Live auto-fill needs an optional BoM service — see advanced settings.)</div>
+          <div id="acList" class="aclist"></div>
+          <div class="hint" id="bomStatus">Start typing to search Australian addresses; pick one to drop in its coordinates, then jump to BoM.</div>
+        </div>
+        <div class="row three" style="margin-bottom:6px">
+          <div class="field"><label>Latitude</label><input id="lat" type="number" step="any" placeholder="-38.34"></div>
+          <div class="field"><label>Longitude</label><input id="lng" type="number" step="any" placeholder="144.97"></div>
+          <div class="field" style="display:flex;align-items:flex-end">
+            <a id="bomDeep" class="bomdeep disabled" target="_blank" rel="noopener">Open BoM IFD at coords ↗</a>
+          </div>
         </div>
         <div id="bomResult" style="display:none">
           <div class="hint" id="bomLoc" style="color:var(--txt);margin-bottom:6px"></div>
@@ -246,7 +265,7 @@
         <div id="checks"></div>
         <table class="out" id="outTable"><tbody></tbody></table>
         <div class="actions">
-          <button class="primary" id="pdfBtn" disabled>Download Performance Solution report</button>
+          <button class="primary" id="pdfBtn" disabled>Download Comps</button>
           <button class="ghost" id="resetBtn">Reset</button>
         </div>
         <details>
@@ -360,34 +379,98 @@ $("apiBase").value = savedBase===null ? "" : savedBase;
 $("apiBase").addEventListener("change", ()=>localStorage.setItem(API_KEY, $("apiBase").value.trim().replace(/\/+$/,"")));
 const apiBase = () => (localStorage.getItem(API_KEY) || $("apiBase").value || "").trim().replace(/\/+$/,"");
 
-async function fetchBom(){
-  const q = $("bomAddr").value.trim();
-  const status = $("bomStatus");
-  if(!apiBase()){
-    status.innerHTML = "No BoM service configured — enter the 5-min, 1% AEP intensity manually, or look it up at the <a href=\""+BOM_TOOL_URL+"\" target=\"_blank\" rel=\"noopener\">BoM IFD2016 tool ↗</a>. (To enable live auto-fill, set a service URL under advanced settings.)";
-    status.style.color = "var(--warn)"; return;
-  }
-  if(!q){ status.textContent = "Enter an address first."; return; }
-  $("bomBtn").disabled = true; status.style.color = "var(--muted)";
-  status.textContent = "Looking up "+q+" …";
+/* coordinates + BoM IFD2016 deep link (pre-fills BoM's tool at the exact lat/long) */
+function bomDeepUrl(){
+  const la=parseFloat($("lat").value), lo=parseFloat($("lng").value);
+  if(!isFinite(la)||!isFinite(lo)) return null;
+  return BOM_TOOL_URL+"?coordinate_type=dec_deg&latitude="+la+"&longitude="+lo;
+}
+function refreshDeep(){
+  const u=bomDeepUrl(), a=$("bomDeep");
+  if(u){ a.href=u; a.classList.remove("disabled"); } else { a.removeAttribute("href"); a.classList.add("disabled"); }
+}
+["lat","lng"].forEach(id=>$(id).addEventListener("input",refreshDeep));
+
+/* address autocomplete via Photon (komoot) — CORS-friendly, no key, biased to Australia */
+const AU_BBOX="112.9,-43.7,153.6,-10.7";
+let acItems=[], acHi=-1, acTimer=null, acSeq=0;
+function acClose(){ $("acList").classList.remove("open"); $("acList").innerHTML=""; acItems=[]; acHi=-1; }
+function fmtAddr(p){
+  const street=p.housenumber&&p.street?(p.housenumber+" "+p.street):(p.street||p.name||"");
+  const line2=[p.suburb||p.city||p.district,p.state,p.postcode].filter(Boolean).join(" ");
+  return {label:[street,line2].filter(Boolean).join(", "), line1:street||p.city||p.name||"", line2};
+}
+async function acSearch(q){
+  const seq=++acSeq;
   try{
-    const r = await fetch(apiBase()+"/api/hydraulics/ifd-by-address",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({query:q,durationMinutes:5})});
-    const data = await r.json();
+    const r=await fetch("https://photon.komoot.io/api/?q="+encodeURIComponent(q)+"&limit=6&lang=en&bbox="+AU_BBOX);
+    const j=await r.json();
+    if(seq!==acSeq) return;
+    const feats=(j.features||[]).filter(f=>{const p=f.properties||{};return p.countrycode==="AU"||p.country==="Australia";});
+    acItems=feats.map(f=>({coords:f.geometry.coordinates, ...fmtAddr(f.properties||{})}));
+    if(!acItems.length){ acClose(); return; }
+    $("acList").innerHTML=acItems.map((it,i)=>`<div class="acitem" data-i="${i}"><div>${esc(it.line1||it.label)}</div>${it.line2?`<div class="sub">${esc(it.line2)}</div>`:""}</div>`).join("");
+    $("acList").classList.add("open"); acHi=-1;
+    $("acList").querySelectorAll(".acitem").forEach(el=>el.addEventListener("mousedown",ev=>{ ev.preventDefault(); acPick(+el.dataset.i); }));
+  }catch(e){ acClose(); }
+}
+function acPick(i){
+  const it=acItems[i]; if(!it) return;
+  $("bomAddr").value=it.label;
+  $("lng").value=(+it.coords[0]).toFixed(5); $("lat").value=(+it.coords[1]).toFixed(5);
+  refreshDeep(); acClose();
+  $("bomStatus").innerHTML="Coordinates dropped in. <b>Fetch from BoM</b> (or open the BoM IFD tool) for the 5-min 1% AEP intensity.";
+  $("bomStatus").style.color="var(--good)";
+}
+function acHiSync(){ $("acList").querySelectorAll(".acitem").forEach((el,i)=>el.classList.toggle("hi",i===acHi)); }
+$("bomAddr").addEventListener("input",()=>{
+  const q=$("bomAddr").value.trim(); clearTimeout(acTimer);
+  if(q.length<3){ acClose(); return; }
+  acTimer=setTimeout(()=>acSearch(q),280);
+});
+$("bomAddr").addEventListener("keydown",e=>{
+  const open=$("acList").classList.contains("open");
+  if(e.key==="ArrowDown"&&open){ e.preventDefault(); acHi=Math.min(acHi+1,acItems.length-1); acHiSync(); }
+  else if(e.key==="ArrowUp"&&open){ e.preventDefault(); acHi=Math.max(acHi-1,0); acHiSync(); }
+  else if(e.key==="Enter"){ e.preventDefault(); if(open&&acHi>=0) acPick(acHi); else fetchBom(); }
+  else if(e.key==="Escape"){ acClose(); }
+});
+document.addEventListener("click",e=>{ if(!$("bomPanel").contains(e.target)) acClose(); });
+
+async function fetchBom(){
+  const status=$("bomStatus");
+  const q=$("bomAddr").value.trim();
+  const la=parseFloat($("lat").value), lo=parseFloat($("lng").value);
+  const haveCoords=isFinite(la)&&isFinite(lo);
+  const deep=bomDeepUrl();
+  if(!apiBase()){
+    if(deep){ window.open(deep,"_blank","noopener");
+      status.innerHTML="Opened the BoM IFD2016 tool at your coordinates — read the <b>5-min, 1% AEP</b> intensity and enter it below."; status.style.color="var(--good)"; }
+    else { status.innerHTML="Pick an address or enter coordinates first, then I'll open BoM at that spot — or open the <a href=\""+BOM_TOOL_URL+"\" target=\"_blank\" rel=\"noopener\">BoM IFD2016 tool ↗</a> directly."; status.style.color="var(--warn)"; }
+    return;
+  }
+  if(!haveCoords && !q){ status.textContent="Pick an address or enter coordinates first."; return; }
+  $("bomBtn").disabled=true; status.style.color="var(--muted)"; status.textContent="Looking up …";
+  try{
+    const url=haveCoords ? apiBase()+"/api/hydraulics/ifd" : apiBase()+"/api/hydraulics/ifd-by-address";
+    const body=haveCoords ? {latitude:la,longitude:lo,durationMinutes:5} : {query:q,durationMinutes:5};
+    const r=await fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+    const data=await r.json();
     if(!r.ok) throw Object.assign(new Error(data.error||("HTTP "+r.status)),{bomToolUrl:data.bomToolUrl});
     if(!data.ifd){
-      const link = data.bomToolUrl ? ` <a href="${data.bomToolUrl}" target="_blank" rel="noopener">Open BoM IFD tool ↗</a>` : "";
-      status.innerHTML = "Matched location but BoM lookup failed: "+(data.ifdError||"")+link; status.style.color="var(--warn)"; return;
+      const link=(data.bomToolUrl||deep) ? ` <a href="${data.bomToolUrl||deep}" target="_blank" rel="noopener">Open BoM IFD tool ↗</a>` : "";
+      status.innerHTML="Location matched but BoM lookup failed: "+(data.ifdError||data.error||"")+link; status.style.color="var(--warn)"; return;
     }
-    BOM.location = (data.location && (data.location.displayName||data.location.label)) || q;
-    BOM.source = data.source || "bom";
+    BOM.location=(data.location && (data.location.displayName||data.location.label)) || q || (la.toFixed(4)+", "+lo.toFixed(4));
+    BOM.source=data.source||"bom";
     renderAeps(data.ifd);
-    $("bomLoc").textContent = "📍 "+BOM.location + (data.durationMinutes?("  ·  "+data.durationMinutes+"-min duration"):"");
-    $("bomResult").style.display = "block";
-    status.textContent = "Loaded from "+BOM.source+". 1% AEP selected (recommended for box gutters)."; status.style.color="var(--good)";
+    $("bomLoc").textContent="📍 "+BOM.location+(data.durationMinutes?("  ·  "+data.durationMinutes+"-min duration"):"");
+    $("bomResult").style.display="block";
+    status.textContent="Loaded from "+BOM.source+". 1% AEP selected."; status.style.color="var(--good)";
   }catch(e){
-    const link = e.bomToolUrl ? ` <a href="${e.bomToolUrl}" target="_blank" rel="noopener">Open BoM IFD tool ↗</a>` : "";
-    status.innerHTML = "Lookup failed: "+e.message+". Is the BoM service running at "+apiBase()+"?"+link; status.style.color="var(--bad)";
-  }finally{ $("bomBtn").disabled = false; }
+    const link=(e.bomToolUrl||deep) ? ` <a href="${e.bomToolUrl||deep}" target="_blank" rel="noopener">Open BoM IFD tool ↗</a>` : "";
+    status.innerHTML="Lookup failed: "+e.message+link; status.style.color="var(--bad)";
+  }finally{ $("bomBtn").disabled=false; }
 }
 function renderAeps(ifd){
   const order=["10%","5%","2%","1%"];
@@ -401,8 +484,8 @@ function renderAeps(ifd){
   if(def){ BOM.aep=def.dataset.aep; $("I").value=def.dataset.i; $("I").dispatchEvent(new Event("input",{bubbles:true})); }
 }
 $("bomBtn").addEventListener("click",fetchBom);
-$("bomAddr").addEventListener("keydown",e=>{ if(e.key==="Enter"){ e.preventDefault(); fetchBom(); }});
 $("ofOn").addEventListener("change",()=>{ $("ofFields").style.opacity=$("ofOn").checked?"1":"0.4"; calc(); });
+refreshDeep();
 function toggleOfCtrl(){ const w=$("ofCtrl").value==="weir"; $("ofWeirRow").style.display=w?"grid":"none"; $("ofOrifRow").style.display=w?"none":"grid"; }
 $("ofCtrl").addEventListener("change",()=>{ toggleOfCtrl(); calc(); });
 toggleOfCtrl();
@@ -685,7 +768,7 @@ function buildPDF(o){
   wrapText(doc,disc,M,284,W-2*M,3.1);
 
   const safe=(field("jobno")||"box-gutter").replace(/[^\w-]+/g,"_");
-  doc.save("Box-Gutter-Performance-Solution_"+safe+".pdf");
+  doc.save(safe+" - Comps.pdf");
 }
 
 /* pdf helpers */
