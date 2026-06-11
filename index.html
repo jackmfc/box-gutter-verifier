@@ -397,8 +397,11 @@ let acItems=[], acHi=-1, acTimer=null, acSeq=0;
 function acClose(){ $("acList").classList.remove("open"); $("acList").innerHTML=""; acItems=[]; acHi=-1; }
 function fmtAddr(p){
   const street=p.housenumber&&p.street?(p.housenumber+" "+p.street):(p.street||p.name||"");
-  const line2=[p.suburb||p.city||p.district,p.state,p.postcode].filter(Boolean).join(" ");
-  return {label:[street,line2].filter(Boolean).join(", "), line1:street||p.city||p.name||"", line2};
+  // For metro addresses Photon puts the suburb in `district` and the metro area in `city`,
+  // so prefer suburb/district/locality before city.
+  const locality=p.suburb||p.district||p.locality||p.city||p.town||p.village||"";
+  const line2=[locality,p.state,p.postcode].filter(Boolean).join(" ");
+  return {label:[street,line2].filter(Boolean).join(", "), line1:street||locality, line2};
 }
 async function acSearch(q){
   const seq=++acSeq;
