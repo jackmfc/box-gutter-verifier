@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Curved Box Gutter — NCC Performance Solution Verifier</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="logo.js"></script>
+<style>
+  :root{
+    --bg:#0f1722; --panel:#16202e; --panel2:#1d2a3a; --line:#2a3a4f;
+    --txt:#e8eef5; --muted:#9fb0c3; --accent:#3da9fc; --good:#34c77b; --bad:#ff5c6c; --warn:#ffb454;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--txt)}
+  header{padding:18px 28px;border-bottom:1px solid var(--line);background:var(--panel);display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
+  header h1{font-size:18px;margin:0;font-weight:650}
+  header .sub{color:var(--muted);font-size:13px}
+  .wrap{max-width:1200px;margin:0 auto;padding:22px 28px 90px;display:grid;grid-template-columns:1.18fr 0.82fr;gap:24px}
+  @media(max-width:940px){.wrap{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px 20px;margin-bottom:20px}
+  .card h2{font-size:14px;text-transform:uppercase;letter-spacing:.06em;color:var(--accent);margin:0 0 14px;font-weight:650}
+  .card h2 .note{text-transform:none;letter-spacing:0;color:var(--muted);font-weight:400;font-size:12px}
+  label{display:block;font-size:12.5px;color:var(--muted);margin:0 0 4px}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:12px 16px;margin-bottom:12px}
+  .row.three{grid-template-columns:1fr 1fr 1fr}
+  .field{margin-bottom:0}
+  input,select,textarea{width:100%;background:var(--panel2);border:1px solid var(--line);color:var(--txt);border-radius:8px;padding:8px 10px;font-size:14px;font-family:inherit}
+  input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent)}
+  textarea{resize:vertical;min-height:54px}
+  .hint{font-size:11.5px;color:var(--muted);margin-top:3px}
+  .sticky{position:sticky;top:22px}
+  .result-head{display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap}
+  .badge{font-weight:700;font-size:13px;padding:5px 12px;border-radius:999px}
+  .badge.pass{background:rgba(52,199,123,.16);color:var(--good);border:1px solid var(--good)}
+  .badge.fail{background:rgba(255,92,108,.16);color:var(--bad);border:1px solid var(--bad)}
+  .badge.idle{background:var(--panel2);color:var(--muted);border:1px solid var(--line)}
+  table.out{width:100%;border-collapse:collapse;font-size:13.5px}
+  table.out td{padding:6px 4px;border-bottom:1px solid var(--line);vertical-align:top}
+  table.out td:last-child{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+  table.out td.k{color:var(--muted)}
+  .check{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 12px;border-radius:8px;background:var(--panel2);margin-bottom:8px;font-size:13px;border:1px solid var(--line)}
+  .check .v{font-weight:650;white-space:nowrap}
+  .check.ok{border-color:rgba(52,199,123,.5)} .check.ok .v{color:var(--good)}
+  .check.no{border-color:rgba(255,92,108,.5)} .check.no .v{color:var(--bad)}
+  .check.warn{border-color:rgba(255,180,84,.5)} .check.warn .v{color:var(--warn)}
+  .actions{display:flex;gap:10px;margin-top:16px}
+  button{cursor:pointer;border:none;border-radius:9px;padding:11px 18px;font-size:14px;font-weight:600;font-family:inherit}
+  button.primary{background:var(--accent);color:#04121f}
+  button.ghost{background:var(--panel2);color:var(--txt);border:1px solid var(--line)}
+  button:disabled{opacity:.5;cursor:not-allowed}
+  .disclaimer{font-size:11.5px;color:var(--muted);line-height:1.5;margin-top:14px;border-top:1px dashed var(--line);padding-top:12px}
+  .err{color:var(--bad);font-size:12.5px;margin-top:8px;min-height:1em}
+  .pill{display:inline-block;font-size:11px;color:var(--muted);background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:2px 7px;margin-left:6px}
+  details{margin-top:10px}
+  summary{cursor:pointer;color:var(--accent);font-size:13px}
+  .bom{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:14px}
+  .aep{cursor:pointer;text-align:center;border:1px solid var(--line);border-radius:8px;padding:8px 4px;background:var(--panel);transition:border-color .12s}
+  .aep:hover{border-color:var(--accent)}
+  .aep.sel{border-color:var(--accent);background:rgba(61,169,252,.12)}
+  .aep .a{font-size:11px;color:var(--muted)} .aep .i{font-weight:700;font-size:15px;margin-top:2px} .aep .u{font-size:10px;color:var(--muted)}
+  .bom a{color:var(--accent)}
+  .prbox{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-top:6px;font-size:13px}
+  .prbox .pr{margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+  .prbox .pr:last-child{margin-bottom:0;padding-bottom:0;border-bottom:none}
+  .prbox .id{font-weight:700;color:var(--accent)}
+  .prbox .ttl{font-weight:600}
+  .prbox .tx{color:var(--muted);font-size:12.5px;margin-top:2px}
+  .vicnote{background:rgba(255,180,84,.1);border:1px solid rgba(255,180,84,.4);color:var(--warn);border-radius:8px;padding:9px 12px;font-size:12.5px;margin-top:10px}
+  .methods{display:grid;grid-template-columns:1fr 1fr;gap:6px 14px;margin-top:6px}
+  .methods label{display:flex;gap:8px;align-items:flex-start;color:var(--txt);font-size:13px;cursor:pointer}
+  .methods input{width:auto;margin-top:3px}
+  .methods .md{color:var(--muted);font-size:11.5px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Curved Box Gutter — NCC Performance Solution Verifier</h1>
+  <span class="sub">AS/NZS 3500.3 hydraulics · classification-driven Performance Requirements · superelevation &amp; overflow checks</span>
+</header>
+
+<div class="wrap">
+  <!-- ============ INPUTS ============ -->
+  <div>
+    <div class="card">
+      <h2>Project details</h2>
+      <div class="row">
+        <div class="field"><label>Company / certifier</label><input id="company" value="Mayfair"></div>
+        <div class="field"><label>Job / reference no.</label><input id="jobno" placeholder="e.g. G9544"></div>
+      </div>
+      <div class="row">
+        <div class="field"><label>Project name</label><input id="project" placeholder="e.g. curved entry canopy"></div>
+        <div class="field"><label>Project address</label><input id="address" placeholder=""></div>
+      </div>
+      <div class="row three">
+        <div class="field"><label>Prepared by</label><input id="author" placeholder="Name"></div>
+        <div class="field"><label>Role / reg. no.</label><input id="role" placeholder="e.g. Building Surveyor"></div>
+        <div class="field"><label>Date</label><input id="rdate" type="date"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>NCC Performance Solution framework <span class="note">— sets the volume &amp; relevant Performance Requirement</span></h2>
+      <div class="row three">
+        <div class="field">
+          <label>Governing NCC edition</label>
+          <select id="edition"><option value="2025">NCC 2025</option><option value="2022">NCC 2022</option></select>
+          <div class="hint">Edition in force for this project's approval.</div>
+        </div>
+        <div class="field">
+          <label>Building classification</label>
+          <select id="cls"></select>
+          <div class="hint" id="volHint">—</div>
+        </div>
+        <div class="field">
+          <label>State / territory</label>
+          <select id="state"><option>VIC</option><option>NSW</option><option>QLD</option><option>SA</option><option>WA</option><option>TAS</option><option>NT</option><option>ACT</option></select>
+          <div class="hint">For state variations (e.g. VIC box-gutter note).</div>
+        </div>
+      </div>
+
+      <label style="display:flex;gap:8px;align-items:center;color:var(--txt);margin:2px 0 6px;cursor:pointer">
+        <input type="checkbox" id="citeBoth" style="width:auto" checked>
+        Cite the equivalent Performance Requirement under both editions (NCC 2022 &amp; 2025 transition)
+      </label>
+
+      <label style="margin-top:4px">Relevant Performance Requirement(s) — auto-selected</label>
+      <div class="prbox" id="prbox"></div>
+      <div id="vicnote"></div>
+
+      <label style="margin-top:14px">Assessment Method(s) used <span class="pill">NCC A2G2</span></label>
+      <div class="methods">
+        <label><input type="checkbox" class="meth" data-m="Verification Method (calculation / analytical model)" checked> Verification Method <span class="md">— the calculation below</span></label>
+        <label><input type="checkbox" class="meth" data-m="Comparison with the Deemed-to-Satisfy Provisions" checked> Comparison with DtS</label>
+        <label><input type="checkbox" class="meth" data-m="Expert Judgement"> Expert Judgement</label>
+        <label><input type="checkbox" class="meth" data-m="Evidence of Suitability"> Evidence of Suitability</label>
+      </div>
+
+      <details>
+        <summary>DtS provision being departed from</summary>
+        <div class="hint" id="dtsHint" style="margin-top:6px"></div>
+      </details>
+    </div>
+
+    <div class="card">
+      <h2>Design rainfall &amp; catchment</h2>
+      <div class="bom" id="bomPanel">
+        <div class="field" style="margin-bottom:6px">
+          <label>Site address / location <span class="pill">BoM IFD2016 lookup</span></label>
+          <div style="display:flex;gap:8px">
+            <input id="bomAddr" placeholder="e.g. 12 Smith St, Toorak VIC" style="flex:1">
+            <button class="ghost" id="bomBtn" type="button" style="white-space:nowrap">Fetch from BoM</button>
+          </div>
+          <div class="hint" id="bomStatus">Enter the 5-min, 1% AEP intensity manually below, or look it up at the <a href="http://www.bom.gov.au/water/designRainfalls/revised-ifd/" target="_blank" rel="noopener">BoM IFD2016 tool ↗</a>. (Live auto-fill needs an optional BoM service — see advanced settings.)</div>
+        </div>
+        <div id="bomResult" style="display:none">
+          <div class="hint" id="bomLoc" style="color:var(--txt);margin-bottom:6px"></div>
+          <div class="row three" id="aepRow"></div>
+          <div class="hint">Box gutters are designed for the 1% AEP event. Click an AEP to load its intensity.</div>
+        </div>
+      </div>
+      <div class="row three">
+        <div class="field">
+          <label>Rainfall intensity I (mm/h)</label>
+          <input id="I" type="number" step="any" value="200">
+          <div class="hint">5-min, 1% AEP — auto-filled by BoM or manual.</div>
+        </div>
+        <div class="field"><label>Roof plan area (m²)</label><input id="Aroof" type="number" step="any" value="120"></div>
+        <div class="field">
+          <label>Runoff coefficient C</label>
+          <input id="C" type="number" step="any" value="1.0">
+          <div class="hint">Q = C·i·A/3600. Roof box gutter ≈ 1.0.</div>
+        </div>
+      </div>
+      <div class="row three">
+        <div class="field"><label>Adjacent wall area (m²)</label><input id="Awall" type="number" step="any" value="0"><div class="hint">Vertical surfaces draining to gutter.</div></div>
+        <div class="field"><label>Wall allowance factor</label><input id="wallF" type="number" step="any" value="0.5"><div class="hint">Wind-driven rain fraction.</div></div>
+        <div class="field"><label>Design flow override Q (L/s) <span class="pill">optional</span></label><input id="Qoverride" type="number" step="any" placeholder="blank = compute"><div class="hint">DtS flow figure, used directly.</div></div>
+      </div>
+      <details>
+        <summary>Optional BoM lookup service (advanced)</summary>
+        <div class="field" style="margin-top:8px">
+          <label>BoM lookup service URL <span class="pill">optional</span></label>
+          <input id="apiBase" placeholder="(none — manual entry)">
+          <div class="hint">Leave blank to enter rainfall manually. If you run a service exposing <code>/api/hydraulics/ifd-by-address</code>, paste its base URL here to enable the live BoM auto-fill. Saved in this browser.</div>
+        </div>
+      </details>
+    </div>
+
+    <div class="card">
+      <h2>Box gutter geometry</h2>
+      <div class="row three">
+        <div class="field"><label>Sole (base) width b (mm)</label><input id="b" type="number" step="any" value="300"></div>
+        <div class="field"><label>Overall gutter depth D (mm)</label><input id="D" type="number" step="any" value="150"></div>
+        <div class="field"><label>Centreline radius R (m)</label><input id="R" type="number" step="any" value="4"></div>
+      </div>
+      <div class="row three">
+        <div class="field"><label>Design water depth d (mm)</label><input id="d" type="number" step="any" value=""><div class="hint">From DtS sizing. Blank = critical depth.</div></div>
+        <div class="field"><label>Gutter length on curve (m)</label><input id="L" type="number" step="any" value="6"></div>
+        <div class="field"><label>Min. freeboard (mm)</label><input id="fbMin" type="number" step="any" value="30"><div class="hint">Confirm per AS/NZS 3500.3.</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Overflow provision <span class="note">— AS/NZS 3500.3 §3.5: box gutters require an overflow measure</span></h2>
+      <label style="display:flex;gap:8px;align-items:center;color:var(--txt);margin-bottom:10px;cursor:pointer">
+        <input type="checkbox" id="ofOn" style="width:auto" checked> Include overflow assessment (primary outlet assumed blocked)
+      </label>
+      <div id="ofFields">
+        <div class="row three">
+          <div class="field"><label>Overflow type</label>
+            <select id="ofType"><option>High-capacity rainhead with overflow</option><option>Overflow (slot / weir) in outer face</option><option>Sump with overflow outlet</option><option>Other (describe)</option></select>
+          </div>
+          <div class="field"><label>Hydraulic control</label>
+            <select id="ofCtrl"><option value="weir">Weir (free overflow — rainhead / slot)</option><option value="orifice">Orifice (submerged outlet / pipe)</option></select>
+            <div class="hint">How the overflow flow is governed.</div>
+          </div>
+          <div class="field"><label>Overflow invert above sole (mm)</label><input id="ofInv" type="number" step="any" value="60"><div class="hint">Level at which overflow starts.</div></div>
+        </div>
+        <div class="row three" id="ofWeirRow">
+          <div class="field"><label>Weir length (mm)</label><input id="ofL" type="number" step="any" value="300"><div class="hint">Effective crest length.</div></div>
+          <div class="field"><label>Weir coefficient C<sub>w</sub></label><input id="ofCw" type="number" step="any" value="1.84"><div class="hint">Q = C<sub>w</sub>·L·H^1.5.</div></div>
+          <div class="field"><label>Overflow design flow factor</label><input id="ofFactor" type="number" step="any" value="1.0"><div class="hint">× design flow (1.0 = primary blocked).</div></div>
+        </div>
+        <div class="row three" id="ofOrifRow" style="display:none">
+          <div class="field"><label>Outlet area (mm²)</label><input id="ofArea" type="number" step="any" value="7850"><div class="hint">e.g. 100mm Ø ≈ 7850 mm².</div></div>
+          <div class="field"><label>Discharge coefficient C<sub>d</sub></label><input id="ofCd" type="number" step="any" value="0.6"><div class="hint">Q = C<sub>d</sub>·A·√(2gH).</div></div>
+          <div class="field"><label>Overflow design flow factor</label><input id="ofFactor2" type="number" step="any" value="1.0"><div class="hint">× design flow (1.0 = primary blocked).</div></div>
+        </div>
+        <div class="row">
+          <div class="field"><label>Min. freeboard at overflow (mm)</label><input id="ofFb" type="number" step="any" value="20"><div class="hint">Above peak overflow level to inner upstand.</div></div>
+        </div>
+      </div>
+      <div class="err" id="err"></div>
+    </div>
+  </div>
+
+  <!-- ============ RESULTS ============ -->
+  <div>
+    <div class="sticky">
+      <div class="card">
+        <div class="result-head">
+          <span id="verdict" class="badge idle">Awaiting valid inputs</span>
+          <span style="color:var(--muted);font-size:12.5px" id="verdictSub"></span>
+        </div>
+        <div id="checks"></div>
+        <table class="out" id="outTable"><tbody></tbody></table>
+        <div class="actions">
+          <button class="primary" id="pdfBtn" disabled>Download Performance Solution report</button>
+          <button class="ghost" id="resetBtn">Reset</button>
+        </div>
+        <details>
+          <summary>How the curvature check works</summary>
+          <div class="hint" style="margin-top:8px">Water flowing around a bend banks up on the outer wall (superelevation): Δh = V²·b/(g·R). Half this rise is added to the design water level at the outer wall; the check confirms freeboard there still meets the minimum, so the gutter does not overtop into the building — addressing the 1% AEP "must not enter the building" criterion.</div>
+        </details>
+        <div class="disclaimer" id="disc">
+          This tool is a calculation aid supporting a Performance Solution. It assesses the plan-curvature departure and the overflow condition; it assumes the straight box gutter is otherwise sized to AS/NZS 3500.3. Clause references are reproduced from the NCC for the selected edition and must be confirmed by the responsible practitioner against the current, in-force NCC and any state variations. Outputs do not constitute regulatory approval.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const g = 9.80665;
+const $ = id => document.getElementById(id);
+const num = id => { const v = parseFloat($(id).value); return isNaN(v) ? null : v; };
+const fmt = (x, dp=2) => (x===null||x===undefined||!isFinite(x)) ? "—" : Number(x).toLocaleString(undefined,{minimumFractionDigits:dp,maximumFractionDigits:dp});
+const esc = s => String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+/* ---------------- NCC data model (verified against ncc.abcb.gov.au) ---------------- */
+const CLASSES = [
+  {v:"1a",vol:"Two"},{v:"1b",vol:"Two"},{v:"2",vol:"One"},{v:"3",vol:"One"},{v:"4",vol:"One"},
+  {v:"5",vol:"One"},{v:"6",vol:"One"},{v:"7a",vol:"One"},{v:"7b",vol:"One"},{v:"8",vol:"One"},
+  {v:"9a",vol:"One"},{v:"9b",vol:"One"},{v:"9c",vol:"One"},{v:"10a",vol:"Two"},{v:"10b",vol:"Two"},{v:"10c",vol:"Two"}
+];
+const NCC = {
+  "2022": {
+    One: {
+      part:"NCC 2022 Volume One, Part F1 — Surface water management, rising damp and external waterproofing",
+      prs:[
+        {id:"F1P2",title:"Preventing rainwater from entering buildings",text:"Surface water, resulting from a storm having an annual exceedance probability of 1%, must not enter the building."},
+        {id:"F1P1",title:"Managing rainwater impact on adjoining properties",text:"Surface water, resulting from a storm having an annual exceedance probability of 5%, that is collected or concentrated by a building or sitework, must be disposed of in a way that avoids the likelihood of damage or nuisance to any other property."},
+        {id:"F1P3",title:"Rainwater drainage systems",text:"A drainage system for the disposal of surface water must convey 5% AEP flows to an appropriate outfall and prevent 1% AEP flows from entering the building."}
+      ],
+      dts:{id:"F1D3",title:"Stormwater drainage",std:"AS/NZS 3500.3"}
+    },
+    Two: {
+      part:"NCC 2022 Volume Two, Part H2 — Damp and weatherproofing",
+      prs:[
+        {id:"H2P1",title:"Rainwater management (1)",text:"Surface water, resulting from a storm having an annual exceedance probability of 1%, must not enter the building."},
+        {id:"H2P1",title:"Rainwater management (2)",text:"Surface water, resulting from a storm having an annual exceedance probability of 5%, collected or concentrated by a building or sitework, must be disposed of in a way that avoids the likelihood of damage or nuisance to any other property."}
+      ],
+      dts:{id:"H2D6 / H2D2",title:"Roof and wall cladding (gutters &amp; downpipes) / Drainage",std:"AS/NZS 3500.3"}
+    }
+  },
+  "2025": {
+    One: {
+      part:"NCC 2025 Volume One, Part F1 — Water management",
+      prs:[
+        {id:"F1P1(3)",title:"Managing rainwater impact on the building",text:"Water required to be drained, resulting from a rain event with a 5-minute duration and an annual exceedance probability of 1%, must be disposed of in a way that prevents unhealthy or unsafe conditions and undue damage to internal surfaces and other building elements."},
+        {id:"F1P1(2)",title:"Managing rainwater impact on the building",text:"Water required to be drained, resulting from a rain event with a 5-minute duration and an annual exceedance probability of 5%, must be disposed of in a way that avoids the likelihood of damage to the building."}
+      ],
+      dts:{id:"F1D3 (overflow per F1D4)",title:"Stormwater drainage",std:"AS/NZS 3500.3"}
+    },
+    Two: {
+      part:"NCC 2025 Volume Two, Part H2 — Damp and weatherproofing",
+      prs:[
+        {id:"H2P1",title:"Rainwater management (1)",text:"Surface water, resulting from a storm having an annual exceedance probability of 1%, must not enter the building."},
+        {id:"H2P1",title:"Rainwater management (2)",text:"Surface water, resulting from a storm having an annual exceedance probability of 5%, collected or concentrated by a building or sitework, must be disposed of in a way that avoids the likelihood of damage or nuisance to any other property."}
+      ],
+      dts:{id:"H2D6 / H2D2",title:"Roof and wall cladding (gutters &amp; downpipes) / Drainage",std:"AS/NZS 3500.3"}
+    }
+  }
+};
+function nccFor(){
+  const ed = $("edition").value;
+  const other = ed==="2022" ? "2025" : "2022";
+  const cls = $("cls").value;
+  const vol = (CLASSES.find(c=>c.v===cls)||{}).vol || "One";
+  const citeBoth = $("citeBoth").checked;
+  return { ed, other, cls, vol, data: NCC[ed][vol], otherData: NCC[other][vol], citeBoth };
+}
+// Pair governing edition PRs to their equivalent in the other edition (by criterion order: index 0 = 1% AEP, 1 = 5% AEP).
+function equivPair(ncc){
+  return ncc.data.prs.map((p,i)=>({ gov:p, other: ncc.otherData.prs[i] || null }));
+}
+
+/* populate class dropdown */
+$("cls").innerHTML = CLASSES.map(c=>`<option value="${c.v}">Class ${c.v} — Vol ${c.vol}</option>`).join("");
+$("cls").value = "1a";
+$("rdate").valueAsDate = new Date();
+
+function renderFramework(){
+  const ncc = nccFor();
+  const {ed,other,cls,vol,data,citeBoth} = ncc;
+  $("volHint").textContent = "Class "+cls+" → NCC Volume "+vol;
+  $("prbox").innerHTML = equivPair(ncc).map(pair=>{
+    const p = pair.gov;
+    const eq = (citeBoth && pair.other)
+      ? `<div class="tx" style="color:var(--accent);opacity:.85;margin-top:3px">↔ Equivalent under NCC ${other}: <b>${pair.other.id}</b> — ${pair.other.title}</div>`
+      : "";
+    return `<div class="pr"><span class="id">${p.id}</span> <span class="ttl">— ${p.title}</span> <span class="pill">NCC ${ed}</span><div class="tx">"${p.text}"</div>${eq}</div>`;
+  }).join("");
+  $("dtsHint").innerHTML = `The box gutter departs from the Deemed-to-Satisfy provision <b>${data.dts.id}</b> (${data.dts.title}), which requires compliance with <b>${data.dts.std}</b>. AS/NZS 3500.3 assumes straight box-gutter runs; a gutter curved in plan is outside those provisions, so it is verified here as a Performance Solution.`;
+  // VIC box-gutter note for Vol Two
+  const vn = $("vicnote");
+  if(vol==="Two" && $("state").value==="VIC"){
+    vn.innerHTML = `<div class="vicnote">⚠ In Victoria, Part 7.4 of the ABCB Housing Provisions <b>excludes box gutters</b> from the H2D6 acceptable pathway — so box gutters must be designed to AS/NZS 3500.3. This curved box gutter therefore requires a Performance Solution against ${data.prs[0].id}.</div>`;
+  } else { vn.innerHTML = ""; }
+}
+["edition","cls","state","citeBoth"].forEach(id=>$(id).addEventListener("change", ()=>{ renderFramework(); calc(); }));
+
+/* ---------------- BoM IFD lookup (optional external service) ---------------- */
+let BOM = { location:null, source:null, aep:null };
+const API_KEY = "boxgutter.apiBase";
+const BOM_TOOL_URL = "http://www.bom.gov.au/water/designRainfalls/revised-ifd/";
+const savedBase = localStorage.getItem(API_KEY);
+$("apiBase").value = savedBase===null ? "" : savedBase;
+$("apiBase").addEventListener("change", ()=>localStorage.setItem(API_KEY, $("apiBase").value.trim().replace(/\/+$/,"")));
+const apiBase = () => (localStorage.getItem(API_KEY) || $("apiBase").value || "").trim().replace(/\/+$/,"");
+
+async function fetchBom(){
+  const q = $("bomAddr").value.trim();
+  const status = $("bomStatus");
+  if(!apiBase()){
+    status.innerHTML = "No BoM service configured — enter the 5-min, 1% AEP intensity manually, or look it up at the <a href=\""+BOM_TOOL_URL+"\" target=\"_blank\" rel=\"noopener\">BoM IFD2016 tool ↗</a>. (To enable live auto-fill, set a service URL under advanced settings.)";
+    status.style.color = "var(--warn)"; return;
+  }
+  if(!q){ status.textContent = "Enter an address first."; return; }
+  $("bomBtn").disabled = true; status.style.color = "var(--muted)";
+  status.textContent = "Looking up "+q+" …";
+  try{
+    const r = await fetch(apiBase()+"/api/hydraulics/ifd-by-address",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({query:q,durationMinutes:5})});
+    const data = await r.json();
+    if(!r.ok) throw Object.assign(new Error(data.error||("HTTP "+r.status)),{bomToolUrl:data.bomToolUrl});
+    if(!data.ifd){
+      const link = data.bomToolUrl ? ` <a href="${data.bomToolUrl}" target="_blank" rel="noopener">Open BoM IFD tool ↗</a>` : "";
+      status.innerHTML = "Matched location but BoM lookup failed: "+(data.ifdError||"")+link; status.style.color="var(--warn)"; return;
+    }
+    BOM.location = (data.location && (data.location.displayName||data.location.label)) || q;
+    BOM.source = data.source || "bom";
+    renderAeps(data.ifd);
+    $("bomLoc").textContent = "📍 "+BOM.location + (data.durationMinutes?("  ·  "+data.durationMinutes+"-min duration"):"");
+    $("bomResult").style.display = "block";
+    status.textContent = "Loaded from "+BOM.source+". 1% AEP selected (recommended for box gutters)."; status.style.color="var(--good)";
+  }catch(e){
+    const link = e.bomToolUrl ? ` <a href="${e.bomToolUrl}" target="_blank" rel="noopener">Open BoM IFD tool ↗</a>` : "";
+    status.innerHTML = "Lookup failed: "+e.message+". Is the BoM service running at "+apiBase()+"?"+link; status.style.color="var(--bad)";
+  }finally{ $("bomBtn").disabled = false; }
+}
+function renderAeps(ifd){
+  const order=["10%","5%","2%","1%"];
+  const keys=order.filter(k=>ifd[k]!=null).concat(Object.keys(ifd).filter(k=>!order.includes(k)));
+  $("aepRow").innerHTML = keys.map(k=>`<div class="aep${k==='1%'?' sel':''}" data-aep="${k}" data-i="${ifd[k]}"><div class="a">${k} AEP</div><div class="i">${Number(ifd[k]).toFixed(0)}</div><div class="u">mm/h</div></div>`).join("");
+  $("aepRow").querySelectorAll(".aep").forEach(el=>el.addEventListener("click",()=>{
+    $("aepRow").querySelectorAll(".aep").forEach(x=>x.classList.remove("sel")); el.classList.add("sel");
+    BOM.aep=el.dataset.aep; $("I").value=el.dataset.i; $("I").dispatchEvent(new Event("input",{bubbles:true}));
+  }));
+  const def=$("aepRow").querySelector(".aep.sel")||$("aepRow").querySelector(".aep");
+  if(def){ BOM.aep=def.dataset.aep; $("I").value=def.dataset.i; $("I").dispatchEvent(new Event("input",{bubbles:true})); }
+}
+$("bomBtn").addEventListener("click",fetchBom);
+$("bomAddr").addEventListener("keydown",e=>{ if(e.key==="Enter"){ e.preventDefault(); fetchBom(); }});
+$("ofOn").addEventListener("change",()=>{ $("ofFields").style.opacity=$("ofOn").checked?"1":"0.4"; calc(); });
+function toggleOfCtrl(){ const w=$("ofCtrl").value==="weir"; $("ofWeirRow").style.display=w?"grid":"none"; $("ofOrifRow").style.display=w?"none":"grid"; }
+$("ofCtrl").addEventListener("change",()=>{ toggleOfCtrl(); calc(); });
+toggleOfCtrl();
+
+/* ---------------- calculation ---------------- */
+let LAST = null;
+function calc(){
+  $("err").textContent="";
+  const I=num("I"),Aroof=num("Aroof"),Awall=num("Awall")||0,wallF=num("wallF")||0;
+  const C=num("C"); const Cv=(C===null||C<=0)?1:C;
+  const b=num("b"),D=num("D"),R=num("R"),L=num("L"),fbMin=num("fbMin")||0;
+  let dInput=num("d"); const Qov=num("Qoverride");
+
+  const problems=[];
+  if(Qov===null){ if(I===null||I<=0) problems.push("rainfall intensity"); if(Aroof===null||Aroof<0) problems.push("roof area"); }
+  if(b===null||b<=0) problems.push("sole width");
+  if(D===null||D<=0) problems.push("gutter depth");
+  if(R===null||R<=0) problems.push("radius");
+  if(problems.length){ setIdle("Enter: "+problems.join(", ")); return; }
+
+  const Aeff=(Aroof||0)+wallF*(Awall||0);
+  let Q_Ls = (Qov!==null&&Qov>0) ? Qov : Cv*Aeff*I/3600;
+  const Q=Q_Ls/1000;
+  if(!(Q>0)){ setIdle("Design flow is zero."); return; }
+
+  const b_m=b/1000,D_m=D/1000,R_m=R;
+  const q=Q/b_m;
+  const dc_m=Math.cbrt(q*q/g);
+  let d_m,depthSource;
+  if(dInput!==null&&dInput>0){ d_m=dInput/1000; depthSource="entered (DtS)"; } else { d_m=dc_m; depthSource="estimated = critical depth"; }
+  const V=Q/(b_m*d_m), Fr=V/Math.sqrt(g*d_m);
+  const dh_m=(V*V*b_m)/(g*R_m), outerRise_m=dh_m/2, WLouter_m=d_m+outerRise_m, fb_m=D_m-WLouter_m;
+
+  // overflow (primary outlet assumed blocked) — weir or orifice control
+  let of=null;
+  if($("ofOn").checked){
+    const ctrl=$("ofCtrl").value;
+    const ofInv=num("ofInv"),ofFb=num("ofFb")||0;
+    const ofFactor=(ctrl==="weir"?num("ofFactor"):num("ofFactor2"))||1;
+    const Qof=ofFactor*Q;                              // m³/s
+    let H_m=null, basis="";
+    if(ctrl==="weir"){
+      const ofL=num("ofL"),Cw=num("ofCw")||1.84;
+      if(ofL>0){ H_m=Math.pow(Qof/(Cw*(ofL/1000)),2/3); basis="weir  H=(Q/Cw·L)^â…”  (L="+fmt(ofL,0)+"mm, Cw="+fmt(Cw,2)+")"; }
+    } else {
+      const A=num("ofArea"),Cd=num("ofCd")||0.6;
+      if(A>0){ const Am=A/1e6; const v=Qof/(Cd*Am); H_m=(v*v)/(2*g); basis="orifice  H=(Q/Cd·A)²/2g  (A="+fmt(A,0)+"mm², Cd="+fmt(Cd,2)+")"; }
+    }
+    if(H_m!==null && isFinite(H_m)){
+      const WLof_m=(ofInv/1000)+H_m+outerRise_m;       // + curve rise (indicative)
+      const ofFbRem=D_m-WLof_m;
+      of={ ctrl,basis,ofInv,ofFactor,ofFb,Qof_Ls:Qof*1000,H_mm:H_m*1000,WLof_mm:WLof_m*1000,fb_mm:ofFbRem*1000,
+           pass:(ofFbRem*1000)>=ofFb, type:$("ofType").value };
+    }
+  }
+
+  const o={
+    Aeff,Q_Ls,Q,b,D,R,L,
+    dc_mm:dc_m*1000,d_mm:d_m*1000,depthSource,V,Fr,
+    dh_mm:dh_m*1000,outerRise_mm:outerRise_m*1000,WLouter_mm:WLouter_m*1000,fb_mm:fb_m*1000,fbMin,
+    I,Aroof,Awall,wallF,Qov,C:Cv,
+    bomLoc:BOM.location,bomSource:BOM.source,bomAep:BOM.aep,
+    of, ncc:nccFor(), state:$("state").value,
+    methods:[...document.querySelectorAll(".meth:checked")].map(m=>m.dataset.m)
+  };
+  const cFreeboard=fb_m*1000>=fbMin, cContained=WLouter_m<=D_m, cCrit=d_m>=dc_m-1e-9, supercrit=Fr>1;
+  const cOverflow = !o.of ? true : o.of.pass;
+  o.checks={cFreeboard,cContained,cCrit,supercrit,cOverflow};
+  o.pass = cFreeboard && cContained && cOverflow;
+  LAST=o; render(o);
+}
+
+function setIdle(msg){
+  LAST=null;
+  $("verdict").className="badge idle"; $("verdict").textContent="Awaiting valid inputs";
+  $("verdictSub").textContent=""; $("checks").innerHTML=""; $("outTable").querySelector("tbody").innerHTML="";
+  $("pdfBtn").disabled=true; if(msg)$("err").textContent=msg;
+}
+
+function render(o){
+  const v=$("verdict");
+  v.className="badge "+(o.pass?"pass":"fail");
+  v.textContent=o.pass?"SUPPORTS PERFORMANCE SOLUTION":"DOES NOT COMPLY";
+  v.nextElementSibling.textContent = o.pass ? ("satisfies "+o.ncc.data.prs[0].id+" on the curve") : "a criterion is not met";
+
+  const c=o.checks, chk=[];
+  chk.push(check(c.cFreeboard,"Freeboard at outer wall ≥ minimum",fmt(o.fb_mm,1)+" / "+fmt(o.fbMin,0)+" mm"));
+  chk.push(check(c.cContained,"1% AEP flow contained — no entry to building",fmt(o.WLouter_mm,1)+" ≤ "+fmt(o.D,0)+" mm"));
+  if(o.of) chk.push(check(c.cOverflow,"Overflow (primary blocked) below inner upstand",fmt(o.of.WLof_mm,1)+" mm, FB "+fmt(o.of.fb_mm,1)));
+  if(!c.cCrit) chk.push(checkWarn("Entered depth below critical depth — review",fmt(o.d_mm,1)+" < "+fmt(o.dc_mm,1)+" mm"));
+  if(c.supercrit) chk.push(checkWarn("Supercritical flow (Fr>1) — verify cross-waves","Fr = "+fmt(o.Fr,2)));
+  $("checks").innerHTML=chk.join("");
+
+  const rows=[];
+  rows.push(["Applicable code", o.ncc.data.part.split("—")[0].trim()+" <span class='pill'>Class "+o.ncc.cls+"</span>"]);
+  rows.push(["Performance Requirement", o.ncc.data.prs[0].id +
+    (o.ncc.citeBoth && o.ncc.otherData.prs[0] ? " <span class='pill'>≡ "+o.ncc.otherData.prs[0].id+" (NCC "+o.ncc.other+")</span>" : "")]);
+  if(o.bomLoc) rows.push(["Rainfall source","BoM "+(o.bomAep||"1%")+" AEP <span class='pill'>"+(o.bomSource||"bom")+"</span>"]);
+  rows.push(
+    ["Rainfall intensity I",fmt(o.I,0)+" mm/h"],
+    ["Effective catchment",fmt(o.Aeff,1)+" m²"],
+    ["Design flow  Q=C·i·A/3600",fmt(o.Q_Ls,2)+" L/s"+(o.Qov!==null&&o.Qov>0?" (entered)":" (C="+fmt(o.C,2)+")")],
+    ["Mean velocity V",fmt(o.V,3)+" m/s"],
+    ["Froude number Fr",fmt(o.Fr,2)],
+    ["Critical depth d_c",fmt(o.dc_mm,1)+" mm"],
+    ["Design water depth d",fmt(o.d_mm,1)+" mm <span class='pill'>"+o.depthSource+"</span>"],
+    ["Superelevation Δh (total)",fmt(o.dh_mm,1)+" mm"],
+    ["Rise on outer wall (Δh/2)",fmt(o.outerRise_mm,1)+" mm"],
+    ["Water level at outer wall",fmt(o.WLouter_mm,1)+" mm"],
+    ["Freeboard remaining",fmt(o.fb_mm,1)+" mm"]);
+  if(o.of) rows.push(
+    ["— Overflow head H ("+o.of.ctrl+")",fmt(o.of.H_mm,1)+" mm"],
+    ["— Overflow water level",fmt(o.of.WLof_mm,1)+" mm"],
+    ["— Overflow freeboard",fmt(o.of.fb_mm,1)+" mm"]);
+  $("outTable").querySelector("tbody").innerHTML=rows.map(r=>`<tr><td class="k">${r[0]}</td><td>${r[1]}</td></tr>`).join("");
+  $("pdfBtn").disabled=false;
+}
+function check(ok,label,val){ return `<div class="check ${ok?'ok':'no'}"><span>${ok?'✓':'✗'} ${label}</span><span class="v">${val}</span></div>`; }
+function checkWarn(label,val){ return `<div class="check warn"><span>⚠ ${label}</span><span class="v">${val}</span></div>`; }
+
+document.querySelectorAll("input,select,textarea").forEach(el=>el.addEventListener("input",calc));
+$("resetBtn").addEventListener("click",()=>location.reload());
+
+/* ---------------- PDF (Performance Solution report) ---------------- */
+$("pdfBtn").addEventListener("click",()=>{ if(!LAST) return; try{ buildPDF(LAST); }catch(e){ console.error(e); alert("PDF library not loaded (needs internet first load). Using browser print."); window.print(); } });
+
+function buildPDF(o){
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({unit:"mm",format:"a4"});
+  const M=18,W=210,right=W-M; let y=M;
+  const field=id=>($(id).value||"—");
+  const txt=(s,x,yy,opt)=>doc.text(String(s),x,yy,opt);
+
+  // Header — logo top-left (if available) with title to the right, brand accent rule.
+  let titleX = M;
+  if (window.MAYFAIR_LOGO && window.MAYFAIR_LOGO.dataUri){
+    const lw = 40, lh = lw * window.MAYFAIR_LOGO.h / window.MAYFAIR_LOGO.w; // keep aspect
+    try { doc.addImage(window.MAYFAIR_LOGO.dataUri, window.MAYFAIR_LOGO.type||"PNG", M, 9, lw, lh); titleX = M + lw + 6; } catch(e){ /* fall back to text */ }
+  }
+  doc.setTextColor(20,28,38); doc.setFont("helvetica","bold"); doc.setFontSize(14);
+  txt("Box Gutter — Performance Solution", titleX, 14);
+  doc.setFont("helvetica","normal"); doc.setFontSize(9); doc.setTextColor(90,105,120);
+  txt("Verification report · curved-in-plan box gutter · AS/NZS 3500.3", titleX, 19.5);
+  doc.setDrawColor(244,180,130); doc.setLineWidth(0.8); doc.line(M, 24, W-M, 24); doc.setLineWidth(0.2);
+  y=32; doc.setTextColor(20,28,38);
+
+  doc.setFillColor(o.pass?52:255,o.pass?199:92,o.pass?123:108);
+  doc.roundedRect(M,y-5,W-2*M,11,2,2,"F");
+  doc.setFont("helvetica","bold"); doc.setFontSize(12); doc.setTextColor(255);
+  txt((o.pass?"SUPPORTS THE PERFORMANCE SOLUTION":"DOES NOT COMPLY")+" — see assessment", M+4, y+2.5);
+  doc.setTextColor(20,28,38); y+=14;
+
+  y=kvBlock(doc,"Project",[
+    ["Project",field("project")],["Job / ref.",field("jobno")],
+    ["Address",field("address")],["Date",field("rdate")],
+    ["Prepared by",field("author")],["Role / reg.",field("role")]
+  ],M,y,W);
+
+  // 1. PS identification
+  const pairs = equivPair(o.ncc);
+  const prList = pairs.map(pr=>{
+    let s = `${pr.gov.id} — ${pr.gov.title} (NCC ${o.ncc.ed}): "${pr.gov.text}"`;
+    if(o.ncc.citeBoth && pr.other) s += `   [Equivalent under NCC ${o.ncc.other}: ${pr.other.id} — ${pr.other.title}.]`;
+    return s;
+  });
+  const classLine = "Class "+o.ncc.cls+" ("+o.state+") → NCC Volume "+o.ncc.vol
+    + (o.ncc.citeBoth ? ". Governing edition: NCC "+o.ncc.ed+"; equivalent provisions under NCC "+o.ncc.other+" are cited for the transition period." : ". Edition: NCC "+o.ncc.ed+".");
+  const partLine = o.ncc.data.part.replace(/&amp;/g,'&')
+    + (o.ncc.citeBoth ? "  (cf. "+o.ncc.otherData.part.replace(/&amp;/g,'&')+")" : "");
+  y=paraBlock(doc,"1. Performance Solution identification",[
+    ["Building classification",classLine],
+    ["Applicable Part",partLine],
+  ],M,y,W);
+  y=listBlock(doc,"Relevant Performance Requirement(s)",prList,M,y,W);
+  if(o.ncc.citeBoth){
+    y=ensure(doc,y,8,M);
+    doc.setFont("helvetica","italic"); doc.setFontSize(8); doc.setTextColor(110);
+    y=wrapText(doc,"Edition concordance: the NCC "+o.ncc.ed+" and NCC "+o.ncc.other+" provisions are paired by performance criterion (1% then 5% AEP) as an analytical equivalence for transition reporting — it is not an official NCC concordance. Confirm the operative wording in whichever edition governs the approval.",M,y,W-2*M,3.5);
+    doc.setFont("helvetica","normal"); doc.setTextColor(20,28,38); y+=2;
+  }
+  y=paraBlock(doc,"",[
+    ["DtS provision departed from",o.ncc.data.dts.id+" ("+o.ncc.data.dts.title.replace(/&amp;/g,'&')+") requires compliance with "+o.ncc.data.dts.std+". AS/NZS 3500.3 assumes straight box-gutter runs; this gutter is curved in plan (centreline radius R = "+fmt(o.R,2)+" m), placing it outside the DtS, hence this Performance Solution."],
+    ["Assessment Method(s) — NCC A2G2", (o.methods.length?o.methods.join("; "):"Verification Method (calculation)")],
+  ],M,y,W);
+  if(o.ncc.vol==="Two" && o.state==="VIC")
+    y=noteBlock(doc,"In Victoria, Part 7.4 of the ABCB Housing Provisions excludes box gutters from the H2D6 acceptable pathway; AS/NZS 3500.3 governs.",M,y,W);
+
+  // 2. inputs
+  y=sectionTable(doc,"2. Design inputs",[
+    ["Rainfall location (BoM IFD2016)", o.bomLoc? o.bomLoc+"  ["+(o.bomAep||"1%")+" AEP, "+(o.bomSource||"bom")+"]":"manual entry"],
+    ["Design event","5-min duration, "+(o.bomAep||"1%")+" AEP"],
+    ["Rainfall intensity I", o.Qov!==null&&o.Qov>0?"n/a (flow entered)":fmt(o.I,0)+" mm/h"],
+    ["Runoff coefficient C",fmt(o.C,2)],
+    ["Roof plan area",fmt(o.Aroof,1)+" m²"],
+    ["Adjacent wall area × factor",fmt(o.Awall,1)+" m² × "+fmt(o.wallF,2)],
+    ["Effective catchment",fmt(o.Aeff,1)+" m²"],
+    ["Sole width b / depth D",fmt(o.b,0)+" / "+fmt(o.D,0)+" mm"],
+    ["Centreline radius R",fmt(o.R,2)+" m"],
+    ["Minimum freeboard",fmt(o.fbMin,0)+" mm"]
+  ],M,y,W);
+
+  // 3. analysis
+  y=sectionTable(doc,"3. Hydraulic analysis (curvature)",[
+    ["Design flow  Q = C·i·A/3600",fmt(o.Q_Ls,2)+" L/s"+(o.Qov!==null&&o.Qov>0?"  (entered)":"")],
+    ["Mean velocity  V = Q/(b·d)",fmt(o.V,3)+" m/s"],
+    ["Froude number  Fr",fmt(o.Fr,2)+(o.checks.supercrit?"  (supercritical)":"")],
+    ["Critical depth  d_c = (q²/g)^â…“",fmt(o.dc_mm,1)+" mm"],
+    ["Design water depth  d",fmt(o.d_mm,1)+" mm  ("+o.depthSource+")"],
+    ["Superelevation  Δh = V²·b/(g·R)",fmt(o.dh_mm,1)+" mm"],
+    ["Water level at outer wall  d+Δh/2",fmt(o.WLouter_mm,1)+" mm"],
+    ["Freeboard remaining  D−(d+Δh/2)",fmt(o.fb_mm,1)+" mm"]
+  ],M,y,W);
+
+  // 4. overflow
+  if(o.of) y=sectionTable(doc,"4. Overflow provision (AS/NZS 3500.3 §3.5 — primary outlet assumed blocked)",[
+    ["Overflow measure",o.of.type],
+    ["Overflow design flow  ("+fmt(o.of.ofFactor,2)+"× design)",fmt(o.of.Qof_Ls,2)+" L/s"],
+    ["Hydraulic control",o.of.basis],
+    ["Head over overflow  H",fmt(o.of.H_mm,1)+" mm"],
+    ["Peak overflow water level  (invert+H+Δh/2)",fmt(o.of.WLof_mm,1)+" mm"],
+    ["Freeboard at overflow  (req ≥ "+fmt(o.of.ofFb,0)+")",fmt(o.of.fb_mm,1)+" mm  "+(o.of.pass?"OK":"FAIL")]
+  ],M,y,W);
+
+  // 5. assessment against PR
+  const prRef = o.ncc.data.prs[0].id + (o.ncc.citeBoth && o.ncc.otherData.prs[0] ? " / "+o.ncc.otherData.prs[0].id+" (NCC "+o.ncc.other+")" : "");
+  const ass=[];
+  ass.push((o.checks.cFreeboard&&o.checks.cContained?"PASS":"FAIL")+" — "+prRef+" (1% AEP must not enter the building): with the curvature superelevation included, the outer-wall water level is "+fmt(o.WLouter_mm,1)+" mm against a gutter depth of "+fmt(o.D,0)+" mm, leaving "+fmt(o.fb_mm,1)+" mm freeboard (≥ "+fmt(o.fbMin,0)+" mm required). Stormwater is contained and does not enter the building.");
+  if(o.of) ass.push((o.of.pass?"PASS":"FAIL")+" — Overflow / storm exceedance: with the primary outlet blocked, the "+o.of.type.toLowerCase()+" discharges the design flow at a peak level of "+fmt(o.of.WLof_mm,1)+" mm, "+fmt(o.of.fb_mm,1)+" mm below the inner upstand, so exceedance flow discharges externally rather than into the building.");
+  ass.push("Comparison with DtS — the curved gutter retains positive freeboard at the design flow, performing equivalently to a compliant straight AS/NZS 3500.3 box gutter for the conveyance criterion.");
+  if(!o.checks.cCrit) ass.push("REVIEW — entered design depth is below critical depth; confirm the operating depth from the DtS sizing.");
+  if(o.checks.supercrit) ass.push("REVIEW — flow is supercritical (Fr="+fmt(o.Fr,2)+"); standing-wave run-up around the bend should be considered in addition to mean superelevation.");
+  y=bulletBlock(doc,(o.of?"5":"4")+". Assessment against the Performance Requirement(s)",ass,M,y,W);
+
+  // conclusion
+  y=ensure(doc,y,30,M);
+  doc.setFont("helvetica","bold"); doc.setFontSize(10.5); txt("Conclusion",M,y); y+=5.5;
+  doc.setFont("helvetica","normal"); doc.setFontSize(9.5);
+  const concl=o.pass
+    ? "The analysis demonstrates, by the nominated Assessment Method(s), that the curved-in-plan box gutter conveys the design storm and (where assessed) the blocked-outlet overflow condition while maintaining freeboard, satisfying "+prRef+" of "+o.ncc.data.part.replace(/&amp;/g,'&')+". The Performance Solution is supported, subject to the assumptions below and to overflow devices being installed as designed."
+    : "The analysis shows the curved-in-plan box gutter does NOT maintain adequate freeboard for "+prRef+" once curvature (and, where assessed, the blocked-outlet overflow) is accounted for. The geometry or overflow provision must be revised and re-verified before the Performance Solution can be supported.";
+  y=wrapText(doc,concl,M,y,W-2*M,4.6);
+
+  y=ensure(doc,y+4,28,M);
+  doc.setDrawColor(180); doc.line(M,y+10,M+70,y+10); doc.line(right-70,y+10,right,y+10);
+  doc.setFontSize(8.5); doc.setTextColor(90);
+  txt("Prepared by: "+field("author")+"   "+field("role"),M,y+15);
+  txt("Date: "+field("rdate"),right-70,y+15);
+
+  doc.setFontSize(7.5); doc.setTextColor(120);
+  const edRef = o.ncc.citeBoth ? "NCC "+o.ncc.ed+" (governing) and NCC "+o.ncc.other+" (transition equivalent)" : "NCC "+o.ncc.ed;
+  const disc="Calculation aid supporting a Performance Solution. Assesses the plan-curvature departure and overflow condition; assumes the straight box gutter is otherwise sized to AS/NZS 3500.3. Performance Requirement wording is reproduced from "+edRef+" and must be confirmed against the in-force edition and state variations. Overflow head uses a rectangular-weir idealisation (Q=Cw·L·H^1.5) as an indicative check — confirm against AS/NZS 3500.3. Does not constitute regulatory approval. g=9.80665 m/s².";
+  wrapText(doc,disc,M,284,W-2*M,3.1);
+
+  const safe=(field("jobno")||"box-gutter").replace(/[^\w-]+/g,"_");
+  doc.save("Box-Gutter-Performance-Solution_"+safe+".pdf");
+}
+
+/* pdf helpers */
+function ensure(doc,y,need,M){ if(y+need>282){ doc.addPage(); return M; } return y; }
+function wrapText(doc,s,x,y,w,lh){ const lines=doc.splitTextToSize(String(s),w); lines.forEach(l=>{ y=ensure(doc,y,lh,18); doc.text(l,x,y); y+=lh; }); return y; }
+function kvBlock(doc,title,pairs,M,y,W){
+  y=ensure(doc,y,14,M); doc.setFont("helvetica","bold"); doc.setFontSize(10.5); doc.setTextColor(20,28,38); doc.text(title,M,y); y+=5;
+  doc.setFont("helvetica","normal"); doc.setFontSize(9.5); const colW=(W-2*M)/2;
+  for(let i=0;i<pairs.length;i+=2){ y=ensure(doc,y,6,M);
+    [pairs[i],pairs[i+1]].forEach((p,j)=>{ if(!p)return; const x=M+j*colW;
+      doc.setTextColor(120); doc.text(p[0]+":",x,y); doc.setTextColor(20,28,38);
+      const lbl=doc.getTextWidth(p[0]+": "); const vv=doc.splitTextToSize(String(p[1]),colW-lbl-2); doc.text(vv[0]||"",x+lbl+1,y); });
+    y+=5.4; }
+  return y+2;
+}
+function paraBlock(doc,title,pairs,M,y,W){
+  y=ensure(doc,y,12,M);
+  if(title){ doc.setFont("helvetica","bold"); doc.setFontSize(10.5); doc.setTextColor(20,28,38); doc.text(title,M,y); y+=5.5; }
+  doc.setFontSize(9.5);
+  pairs.forEach(p=>{ y=ensure(doc,y,6,M);
+    doc.setFont("helvetica","bold"); doc.setTextColor(60); doc.text(p[0]+":",M,y);
+    const lbl=doc.getTextWidth(p[0]+": "); doc.setFont("helvetica","normal"); doc.setTextColor(20,28,38);
+    y=wrapText(doc,p[1],M+lbl+1,y,(W-2*M)-lbl-1,4.4); y+=1.2; });
+  return y+1.5;
+}
+function listBlock(doc,title,items,M,y,W){
+  y=ensure(doc,y,10,M); doc.setFont("helvetica","bold"); doc.setFontSize(9.5); doc.setTextColor(60); doc.text(title+":",M,y); y+=4.6;
+  doc.setFont("helvetica","normal"); doc.setTextColor(20,28,38);
+  items.forEach(it=>{ y=ensure(doc,y,6,M); doc.setTextColor(60); doc.text("•",M+2,y); doc.setTextColor(20,28,38); y=wrapText(doc,it,M+6,y,(W-2*M)-6,4.4); y+=1; });
+  return y+1.5;
+}
+function sectionTable(doc,title,rows,M,y,W){
+  y=ensure(doc,y,16,M); doc.setFont("helvetica","bold"); doc.setFontSize(10.5); doc.setTextColor(20,28,38); doc.text(title,M,y); y+=4;
+  const x2=W-M; doc.setFontSize(9.3);
+  rows.forEach((r,i)=>{ y=ensure(doc,y,6,M);
+    if(i%2===0){ doc.setFillColor(244,247,250); doc.rect(M,y-3.4,W-2*M,5.6,"F"); }
+    doc.setFont("helvetica","normal"); doc.setTextColor(60); doc.text(String(r[0]),M+1.5,y);
+    doc.setFont("helvetica","bold"); doc.setTextColor(20,28,38); doc.text(String(r[1]),x2-1.5,y,{align:"right"});
+    y+=5.6; });
+  return y+3;
+}
+function bulletBlock(doc,title,items,M,y,W){
+  y=ensure(doc,y,14,M); doc.setFont("helvetica","bold"); doc.setFontSize(10.5); doc.setTextColor(20,28,38); doc.text(title,M,y); y+=5.5;
+  doc.setFont("helvetica","normal"); doc.setFontSize(9.5);
+  items.forEach(it=>{ y=ensure(doc,y,6,M); const pass=it.startsWith("PASS"),fail=it.startsWith("FAIL");
+    doc.setTextColor(pass?34:fail?200:130,pass?150:fail?40:90,pass?80:fail?50:40); doc.text("•",M,y); doc.setTextColor(20,28,38);
+    y=wrapText(doc,it,M+4,y,(W-2*M)-4,4.5); y+=1.3; });
+  return y+1.5;
+}
+function noteBlock(doc,s,M,y,W){
+  y=ensure(doc,y,10,M); doc.setFillColor(255,247,230); doc.setDrawColor(230,180,90);
+  const lines=doc.splitTextToSize("⚠ "+s,(W-2*M)-6); const h=lines.length*4.2+5;
+  y=ensure(doc,y,h,M); doc.roundedRect(M,y-3,W-2*M,h,1.5,1.5,"FD");
+  doc.setFont("helvetica","normal"); doc.setFontSize(8.7); doc.setTextColor(120,80,10);
+  let yy=y+2; lines.forEach(l=>{ doc.text(l,M+3,yy); yy+=4.2; });
+  doc.setTextColor(20,28,38); return y+h;
+}
+
+/* init */
+renderFramework();
+calc();
+</script>
+</body>
+</html>
